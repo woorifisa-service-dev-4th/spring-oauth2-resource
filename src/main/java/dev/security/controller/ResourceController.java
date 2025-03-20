@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 /*
@@ -48,6 +49,52 @@ public class ResourceController {
                     "expiresAt", jwt.getExpiresAt(),
                     "claims", jwt.getClaims()
             );
+        } catch (JwtException e) {
+            return Map.of(
+                    "status", "error",
+                    "message", "토큰이 유효하지 않거나 만료되었습니다.",
+                    "errorDetails", e.getMessage()
+            );
+        }
+    }
+
+    // 권한 확인
+    @GetMapping("/check-access")
+    public Map<String, Object> checkAccess(@RequestHeader("Authorization") String token) {
+        if (token == null || !token.startsWith("Bearer ")) {
+            return Map.of(
+                    "status", "error",
+                    "message", "토큰이 제공되지 않았거나 형식이 잘못되었습니다."
+            );
+        }
+
+        String accessToken = token.substring(7); // "Bearer " 제거
+
+        try {
+            Jwt jwt = jwtDecoder.decode(accessToken); // JWT 유효성 검증
+
+            // JWT 클레임에서 권한(roles 또는 authorities) 가져오기
+            List<String> roles = jwt.getClaimAsStringList("scope"); // 일반적으로 "roles" 사용
+
+            if (roles == null || roles.isEmpty()) {
+                return Map.of(
+                        "status", "error",
+                        "message", "권한 정보가 없습니다."
+                );
+            }
+
+            // "read"와 "write" 권한을 둘 다 포함해야 관리자 페이지 접근 가능
+            if (roles.contains("read") && roles.contains("write")) {
+                return Map.of(
+                        "status", "success",
+                        "message", "관리자 페이지 접근 가능"
+                );
+            } else {
+                return Map.of(
+                        "status", "error",
+                        "message", "권한 부족: 관리자 페이지 접근 불가"
+                );
+            }
         } catch (JwtException e) {
             return Map.of(
                     "status", "error",
